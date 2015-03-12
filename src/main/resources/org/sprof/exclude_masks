@@ -18,5 +18,9 @@ java.text.
 javax.script.
 java.lang.
 sun.launcher.
-org.sprof.
 org.elasticsearch.common.logging.
+javassist.
+scala.
+org.sprof.Call
+org.sprof.CallWatcher
+org.sprof.Transformer

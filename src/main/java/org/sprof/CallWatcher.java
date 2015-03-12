@@ -3,6 +3,7 @@ package org.sprof;
 import javassist.CtClass;
 import javassist.CtMethod;
 
+import java.lang.System;
 import java.io.FileNotFoundException;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
@@ -13,11 +14,21 @@ import java.util.Map;
 
 public class CallWatcher {
     public static final CallWatcher instance = new CallWatcher();
-
-    private volatile int methodListCount = 0;
     private final long startTime = System.nanoTime();
+    private final Map<String, Call> calls = new HashMap<>();
 
-    private final Map<Integer, Call> calls = new HashMap<>();
+	static {
+		Runtime.getRuntime().addShutdownHook(new Thread() {
+			public void run() {
+				try {
+					instance.dump();
+				} catch ( Exception e ) {
+					System.err.println("Got " + e);
+				}
+				System.out.println("Trace done in /tmp/trace");
+			}
+		});
+	}
 
     private CallWatcher() {}
 
@@ -34,16 +45,12 @@ public class CallWatcher {
         writer.close();
     }
 
-    public synchronized int registerMethod(CtMethod ctMethod) {
-        calls.put(++methodListCount, new Call(getMethodName(ctMethod)));
-        return methodListCount;
-    }
-
-    public void push(int methodId, long startTime) {
+    public void push(String methodId, long startTime) {
+		if ( !calls.containsKey(methodId) ) calls.put(methodId, new Call(methodId));
         calls.get(methodId).push(getCaller(), startTime);
     }
 
-    public void pop(int methodId, long endTime) {
+    public void pop(String methodId, long endTime) {
         calls.get(methodId).pop(getCaller(), endTime);
     }
 
@@ -55,7 +62,7 @@ public class CallWatcher {
             return getMethodName(trace[4]);
     }
 
-    private String getMethodName(CtMethod ctMethod) {
+    static public String getMethodName(CtMethod ctMethod) {
         String className;
         CtClass mClass = ctMethod.getDeclaringClass();
         if ( mClass.getName().contains("anonfun") ) {
@@ -75,7 +82,7 @@ public class CallWatcher {
         return className + methName;
     }
 
-    private String getMethodName(StackTraceElement ctMethod) {
+	static public String getMethodName(StackTraceElement ctMethod) {
         String className;
         if ( ctMethod.getClassName().contains("anonfun") )
             className = ctMethod.getClassName().split("\\$\\$anonfun\\$")[0] + ":" + ctMethod.getLineNumber() + " λ";
@@ -95,7 +102,7 @@ public class CallWatcher {
         return className + methName;
     }
 
-    private String shantiClassName(String name) {if ( name.endsWith("$") ) {
+	static public String shantiClassName(String name) {if ( name.endsWith("$") ) {
         return "@" + name.replace("$", "");
     }
         return name;

@@ -1,9 +1,7 @@
 package org.sprof;
 
-import javassist.ClassPool;
-import javassist.CtClass;
-import javassist.CtMethod;
-import javassist.Modifier;
+import javassist.*;
+import javassist.bytecode.BadBytecode;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -17,44 +15,34 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class Transformer implements ClassFileTransformer {
+public class Transformer {
 
-    private final Set<String> excludes;
-    private final List<String> excludeMasks;
+    private static final Set<String> excludes = getExcludes();
+    private static final List<String> excludeMasks = getExcludeMasks();
 
-    public Transformer() {
-        excludes = getExcludes();
-        excludeMasks = getExcludeMasks();
-    }
-
-    public byte[] transform(ClassLoader loader,
-                            String className,
-                            Class classBeingRedefined,
-                            ProtectionDomain protectionDomain,
-                            byte[] byteCode)
-            throws IllegalClassFormatException {
-
-        String normalizedClassName = className.replaceAll("/", ".");
-        if (!isExclude(normalizedClassName)) {
+	static public byte[] transform(String className, ClassPool classPool) throws IllegalClassFormatException, NotFoundException, CannotCompileException, BadBytecode, IOException {
+        if (!isExclude(className)) {
             try {
-                byteCode = transformClass(normalizedClassName, byteCode);
+                return transformClass(className, classPool);
             } catch (Exception e) {
                 e.printStackTrace();
-                System.out.println("fail [" + normalizedClassName + "]");
+                System.err.println("fail [" + className + "]");
+				throw e;
             }
         }
 
-        return byteCode;
+        return classPool.get(className).toBytecode();
     }
 
-    private byte[] transformClass(String className, byte[] byteCode) throws Exception {
-        ClassPool classPool = ClassPool.getDefault();
+	static private byte[] transformClass(String className, ClassPool classPool) throws NotFoundException, CannotCompileException, BadBytecode, IOException {
         CtClass ctClass = classPool.get(className);
         if (ctClass.isAnnotation()) {
-            return byteCode;
+            return classPool.get(className).toBytecode();
         } else if (ctClass.isInterface()) {
-            return byteCode;
-        }
+            return classPool.get(className).toBytecode();
+        } else
+        if ( ctClass.isFrozen() )
+            ctClass.defrost();
         try {
             CtMethod[] methods = ctClass.getDeclaredMethods();
             for (CtMethod ctMethod : methods) {
@@ -63,18 +51,21 @@ public class Transformer implements ClassFileTransformer {
                 } else if ((ctMethod.getModifiers() & Modifier.NATIVE) > 0) {
                     continue;
                 }
-                int methodId = CallWatcher.instance.registerMethod(ctMethod);
-                ctMethod.insertBefore("org.sprof.CallWatcher.instance.push(" + methodId + ", System.nanoTime());");
-                ctMethod.insertAfter("org.sprof.CallWatcher.instance.pop(" + methodId + ", System.nanoTime());", true);
+                String methodId = CallWatcher.getMethodName(ctMethod);
+                ctMethod.insertBefore("org.sprof.CallWatcher.instance.push(\"" + methodId + "\", java.lang.System.nanoTime());");
+                ctMethod.insertAfter("org.sprof.CallWatcher.instance.pop(\"" + methodId + "\", java.lang.System.nanoTime());", true);
                 ctMethod.getMethodInfo().rebuildStackMap(classPool);
             }
             return ctClass.toBytecode();
-        } finally {
+        } catch ( Exception e ) {
+			System.err.println("Can't transform " + className + ": " + e);
+			return ctClass.toBytecode();
+		} finally {
             ctClass.detach();
         }
     }
 
-    private boolean isExclude(String className) {
+	static private boolean isExclude(String className) {
         if (excludes.contains(className)) {
             return true;
         }
@@ -86,7 +77,7 @@ public class Transformer implements ClassFileTransformer {
         return false;
     }
 
-    private Set<String> getExcludes() {
+	static private Set<String> getExcludes() {
         Set<String> excludes = new HashSet<>();
         InputStream stream = null;
         BufferedReader reader = null;
@@ -119,7 +110,7 @@ public class Transformer implements ClassFileTransformer {
         return excludes;
     }
 
-    private List<String> getExcludeMasks() {
+	static private List<String> getExcludeMasks() {
         List<String> excludes = new ArrayList<>();
         InputStream stream = null;
         BufferedReader reader = null;

@@ -15,13 +15,15 @@ public class Call {
     }
 
     public void push(String caller, long time) {
-        if ( !calls.containsKey(caller) )
-            calls.put(caller, new LinkedList<Long>());
-        calls.get(caller).add(time);
+		String tCaller = caller + "##" + Thread.currentThread().getId();
+        if ( !calls.containsKey(tCaller) )
+            calls.put(tCaller, new LinkedList<Long>());
+        calls.get(tCaller).add(time);
     }
 
     public void pop(String caller, long time) {
-        List<Long> stack = calls.get(caller);
+		String tCaller = caller + "##" + Thread.currentThread().getId();
+        List<Long> stack = calls.get(tCaller);
         long start = stack.remove(stack.size() - 1);
         if ( !times.containsKey(caller) )
             times.put(caller, new CallPoint(caller));
