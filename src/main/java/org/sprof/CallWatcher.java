@@ -54,14 +54,10 @@ public class CallWatcher {
 		String className = classNames.get(mClass.getName());
 		if ( className == null ) {
 			if (mClass.getName().contains("$$anonfun$")) {
-				Matcher m = Pattern.compile("(.*)\\$\\$anonfun\\$(.*)").matcher(mClass.getName());
-				m.matches();
-				className = "[λ]"+ m.group(1) + "::" + m.group(2).replaceAll("\\$", "#") + ":" + ctMethod.getMethodInfo().getLineNumber(0);
+				className = mClass.getName().replaceAll("\\$\\$anonfun\\$", ".[λ]").replaceAll("\\$", "#") + ":" + ctMethod.getMethodInfo().getLineNumber(0);
 			} else if (mClass.getName().contains("$$anon$")) {
 				try {
-					Matcher m = Pattern.compile(".*\\$\\$anon\\$(.*)").matcher(mClass.getName());
-					m.matches();
-					className = "[α]" + mClass.getSuperclass().getName() + "#" + m.group(1) + ":" + mClass.getEnclosingBehavior().getMethodInfo().getLineNumber(0);
+					className =  mClass.getName().replace("$$anon", ".[α <: " + mClass.getSuperclass().getName() + "]").replaceAll("\\$", "#") + ":" + mClass.getEnclosingBehavior().getMethodInfo().getLineNumber(0);
 				} catch (Exception e) {
 					className = shantiClassName(mClass.getName());
 				}
