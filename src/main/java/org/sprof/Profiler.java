@@ -1,15 +1,9 @@
 package org.sprof;
 
-import javassist.ClassPool;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.OptionBuilder;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
+import javassist.*;
+import org.apache.commons.cli.*;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.URISyntaxException;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -26,15 +20,15 @@ public class Profiler {
 		"CallWatcher$1"
 	};
 
-	public static void main(String args[]) throws Exception {
+    public static void main(String args[]) throws Exception {
 		Options options = new Options();
-		options.addOption(OptionBuilder.
-				withArgName("target").
-				hasArg().
-				withDescription("target jar").
-				withLongOpt("target").
-				isRequired(true).
-				create("t")
+		options.addOption( OptionBuilder.
+			withArgName("target").
+			hasArg().
+			withDescription("target jar").
+			withLongOpt("target").
+			isRequired(true).
+			create("t")
 		);
 		try {
 			//CommandLine line = new GnuParser().parse(options, args);
@@ -72,12 +66,12 @@ public class Profiler {
 			}
 
 			replaceJarFile(target, transformedClasses);
-		} catch (ParseException e) {
+		} catch ( ParseException e ) {
 			new HelpFormatter().printHelp("sprof", options);
 		}
-	}
+    }
 
-	static private void replaceJarFile(String jarPathAndName, HashMap<String, byte[]> replaces) throws IOException, URISyntaxException {
+	static private void replaceJarFile(String jarPathAndName, HashMap<String, byte[]> replaces) throws IOException,URISyntaxException {
 		File jarFile = new File(jarPathAndName);
 		File tempJarFile = new File(jarPathAndName + ".tmp");
 		JarFile jar = new JarFile(jarFile);
@@ -92,7 +86,7 @@ public class Profiler {
 				InputStream entryStream = null;
 				for (Enumeration<JarEntry> entries = jar.entries(); entries.hasMoreElements(); ) {
 					JarEntry entry = entries.nextElement();
-					if (replaces.containsKey(entry.getName())) {
+					if ( replaces.containsKey(entry.getName()) ) {
 						tempJar.putNextEntry(new JarEntry(entry.getName()));
 						tempJar.write(replaces.get(entry.getName()));
 						replaces.remove(entry.getName());
@@ -105,10 +99,15 @@ public class Profiler {
 						entryStream.close();
 					}
 				}
-				for (Map.Entry<String, byte[]> add : replaces.entrySet()) {
+				for ( Map.Entry<String, byte[]> add : replaces.entrySet() ) {
 					tempJar.putNextEntry(new JarEntry(add.getKey()));
 					tempJar.write(add.getValue());
 				}
+				tempJar.putNextEntry(new JarEntry("org/sprof/class_names"));
+				ByteArrayOutputStream bos = new ByteArrayOutputStream();
+				ObjectOutput out = new ObjectOutputStream(bos);
+				out.writeObject(CallWatcher.classNames);
+				tempJar.write(bos.toByteArray());
 			} catch (Exception ex) {
 				System.err.println(ex);
 				tempJar.putNextEntry(new JarEntry("stub"));
@@ -120,7 +119,7 @@ public class Profiler {
 			jar.close();
 		}
 
-		if (jarFile.delete()) {
+		if ( jarFile.delete() ) {
 			tempJarFile.renameTo(jarFile);
 			System.out.println(jarPathAndName + " updated.");
 		} else

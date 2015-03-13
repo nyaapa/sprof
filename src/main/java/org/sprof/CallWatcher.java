@@ -3,10 +3,7 @@ package org.sprof;
 import javassist.CtClass;
 import javassist.CtMethod;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.PrintWriter;
-import java.io.UnsupportedEncodingException;
+import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
@@ -16,6 +13,7 @@ public class CallWatcher {
 	public static final CallWatcher instance = new CallWatcher();
 	private final long startTime = System.nanoTime();
 	private final Map<String, Call> calls = new HashMap<>();
+	static final Map<String, String> classNames;
 
 	static {
 		Runtime.getRuntime().addShutdownHook(new Thread() {
@@ -27,18 +25,42 @@ public class CallWatcher {
 				}
 			}
 		});
+
+		InputStream stream = CallWatcher.class.getResourceAsStream("/org/sprof/class_names");
+		if ( stream != null ) {
+			HashMap<String, String> tmp;
+			try {
+				ObjectInputStream o = new ObjectInputStream(stream);
+				tmp = (HashMap<String, String>) o.readObject();
+			} catch (Exception e) {
+				System.err.println("Can't read class names: " + e);
+				tmp = new HashMap<>();
+			}
+			classNames = tmp;
+		} else {
+			classNames = new HashMap<>();
+		}
 	}
 
 	private CallWatcher() {
 	}
 
 	static public String getMethodName(CtMethod ctMethod) {
-		String className;
 		CtClass mClass = ctMethod.getDeclaringClass();
-		if (mClass.getName().contains("anonfun")) {
-			className = mClass.getName().split("\\$\\$anonfun\\$")[0] + ":" + ctMethod.getMethodInfo().getLineNumber(0) + " λ";
-		} else
-			className = shantiClassName(mClass.getName());
+		String className = classNames.get(mClass.getName());
+		if ( className == null ) {
+			if (mClass.getName().contains("$$anonfun$")) {
+				className = mClass.getName().split("\\$\\$anonfun\\$")[0] + ":" + ctMethod.getMethodInfo().getLineNumber(0) + " λ";
+			} else if (mClass.getName().contains("$$anon$")) {
+				try {
+					className = ">:" + mClass.getSuperclass().getName();
+				} catch (Exception e) {
+					className = shantiClassName(mClass.getName());
+				}
+			} else
+				className = shantiClassName(mClass.getName());
+			classNames.put(mClass.getName(), className);
+		}
 		String methName = ctMethod.getName();
 		if (methName.equals("apply"))
 			methName = "()";
@@ -53,12 +75,7 @@ public class CallWatcher {
 	}
 
 	static public String getMethodName(StackTraceElement ctMethod) {
-		String className;
-		if (ctMethod.getClassName().contains("anonfun"))
-			className = ctMethod.getClassName().split("\\$\\$anonfun\\$")[0] + ":" + ctMethod.getLineNumber() + " λ";
-		else
-			className = shantiClassName(ctMethod.getClassName());
-
+		String className = classNames.get(ctMethod.getClassName());
 		String methName = ctMethod.getMethodName();
 		if (methName.equals("apply"))
 			methName = "()";
