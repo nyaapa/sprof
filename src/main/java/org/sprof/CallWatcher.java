@@ -108,10 +108,7 @@ public class CallWatcher {
 	}
 
 	static public String shantiClassName(String name) {
-		if (name.endsWith("$")) {
-			return "[σ]" + name.replace("$", "");
-		}
-		return name;
+		return (name.endsWith("$") ? ("[σ]" + name.replaceAll("\\$$", "")) : name).replaceAll("\\$", ".");
 	}
 
 	void dump() throws FileNotFoundException, UnsupportedEncodingException {
