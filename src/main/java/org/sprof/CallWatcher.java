@@ -2,12 +2,16 @@ package org.sprof;
 
 import javassist.CtClass;
 import javassist.CtMethod;
+import javassist.bytecode.CodeAttribute;
+import javassist.bytecode.LineNumberAttribute;
 
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class CallWatcher {
 	public static final CallWatcher instance = new CallWatcher();
@@ -50,10 +54,14 @@ public class CallWatcher {
 		String className = classNames.get(mClass.getName());
 		if ( className == null ) {
 			if (mClass.getName().contains("$$anonfun$")) {
-				className = mClass.getName().split("\\$\\$anonfun\\$")[0] + ":" + ctMethod.getMethodInfo().getLineNumber(0) + " λ";
+				Matcher m = Pattern.compile("(.*)\\$\\$anonfun\\$(.*)").matcher(mClass.getName());
+				m.matches();
+				className = "[λ]"+ m.group(1) + "::" + m.group(2).replaceAll("\\$", "#") + ":" + ctMethod.getMethodInfo().getLineNumber(0);
 			} else if (mClass.getName().contains("$$anon$")) {
 				try {
-					className = ">:" + mClass.getSuperclass().getName();
+					Matcher m = Pattern.compile(".*\\$\\$anon\\$(.*)").matcher(mClass.getName());
+					m.matches();
+					className = "[α]" + mClass.getSuperclass().getName() + "#" + m.group(1) + ":" + mClass.getEnclosingBehavior().getMethodInfo().getLineNumber(0);
 				} catch (Exception e) {
 					className = shantiClassName(mClass.getName());
 				}
@@ -76,6 +84,7 @@ public class CallWatcher {
 
 	static public String getMethodName(StackTraceElement ctMethod) {
 		String className = classNames.get(ctMethod.getClassName());
+		if ( className == null ) className = shantiClassName(ctMethod.getClassName());
 		String methName = ctMethod.getMethodName();
 		if (methName.equals("apply"))
 			methName = "()";
@@ -91,7 +100,7 @@ public class CallWatcher {
 
 	static public String shantiClassName(String name) {
 		if (name.endsWith("$")) {
-			return "@" + name.replace("$", "");
+			return "[σ]" + name.replace("$", "");
 		}
 		return name;
 	}
