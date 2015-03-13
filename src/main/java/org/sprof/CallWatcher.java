@@ -80,7 +80,20 @@ public class CallWatcher {
 
 	static public String getMethodName(StackTraceElement ctMethod) {
 		String className = classNames.get(ctMethod.getClassName());
-		if ( className == null ) className = shantiClassName(ctMethod.getClassName());
+		if ( className == null ) {
+			String orig = ctMethod.getClassName();
+			if (orig.contains("$$anonfun$")) {
+				className = orig.replaceAll("\\$\\$anonfun\\$", ".[λ]").replaceAll("\\$", "#") + ":???";
+			} else if (orig.contains("$$anon$")) {
+				try {
+					className = orig.replace("$$anon", ".[α <: ???]").replaceAll("\\$", "#") + ":???";
+				} catch (Exception e) {
+					className = shantiClassName(orig);
+				}
+			} else
+				className = shantiClassName(orig);
+			classNames.put(orig, className);
+		}
 		String methName = ctMethod.getMethodName();
 		if (methName.equals("apply"))
 			methName = "()";
