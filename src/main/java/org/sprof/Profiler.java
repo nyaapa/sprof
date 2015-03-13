@@ -1,13 +1,15 @@
 package org.sprof;
 
-import javassist.*;
-import javassist.bytecode.BadBytecode;
+import javassist.ClassPool;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.OptionBuilder;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.instrument.IllegalClassFormatException;
 import java.net.URISyntaxException;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -24,41 +26,58 @@ public class Profiler {
 		"CallWatcher$1"
 	};
 
-    public static void main(String args[]) throws Exception {
-		if ( args.length < 1 )
-			throw new Exception("Need at least 1 argument");
+	public static void main(String args[]) throws Exception {
+		Options options = new Options();
+		options.addOption(OptionBuilder.
+				withArgName("target").
+				hasArg().
+				withDescription("target jar").
+				withLongOpt("target").
+				isRequired(true).
+				create("t")
+		);
+		try {
+			//CommandLine line = new GnuParser().parse(options, args);
+			//System.err.println(line.getOptionValue("target"));
+			//System.exit(0);
 
-		ClassPool pool = ClassPool.getDefault();
-		pool.insertClassPath(CallWatcher.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath());
+			if (args.length < 1)
+				throw new Exception("Need at least 1 argument");
 
-        for ( int i = 0; i < args.length - 1; i++ )
-			pool.insertClassPath(args[i]);
+			ClassPool pool = ClassPool.getDefault();
+			pool.insertClassPath(CallWatcher.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath());
 
-		String target = args[args.length - 1];
-		JarFile jarFile = new JarFile(target);
-		pool.insertClassPath(target);
+			for (int i = 0; i < args.length - 1; i++)
+				pool.insertClassPath(args[i]);
 
-		HashMap<String, byte[]> transformedClasses = new HashMap<>();
+			String target = args[args.length - 1];
+			JarFile jarFile = new JarFile(target);
+			pool.insertClassPath(target);
 
-		for ( String className : sprof )
-			transformedClasses.put("org/sprof/" + className + ".class", pool.getCtClass("org.sprof."  + className).toBytecode());
+			HashMap<String, byte[]> transformedClasses = new HashMap<>();
 
-		for (Enumeration<JarEntry> classes = jarFile.entries(); classes.hasMoreElements(); ) {
-			JarEntry je = classes.nextElement();
-			if( je.isDirectory() || !je.getName().endsWith(".class") )
-				continue;
-			String className = je.getName();
-			String normalizedName = className.replace(".class", "").replaceAll("/", ".");
-			transformedClasses.put(
-				je.getName(),
-				Transformer.transform(normalizedName, pool)
-			);
+			for (String className : sprof)
+				transformedClasses.put("org/sprof/" + className + ".class", pool.getCtClass("org.sprof." + className).toBytecode());
+
+			for (Enumeration<JarEntry> classes = jarFile.entries(); classes.hasMoreElements(); ) {
+				JarEntry je = classes.nextElement();
+				if (je.isDirectory() || !je.getName().endsWith(".class"))
+					continue;
+				String className = je.getName();
+				String normalizedName = className.replace(".class", "").replaceAll("/", ".");
+				transformedClasses.put(
+					je.getName(),
+					Transformer.transform(normalizedName, pool)
+				);
+			}
+
+			replaceJarFile(target, transformedClasses);
+		} catch (ParseException e) {
+			new HelpFormatter().printHelp("sprof", options);
 		}
+	}
 
-		replaceJarFile(target, transformedClasses);
-    }
-
-	static private void replaceJarFile(String jarPathAndName, HashMap<String, byte[]> replaces) throws IOException,URISyntaxException {
+	static private void replaceJarFile(String jarPathAndName, HashMap<String, byte[]> replaces) throws IOException, URISyntaxException {
 		File jarFile = new File(jarPathAndName);
 		File tempJarFile = new File(jarPathAndName + ".tmp");
 		JarFile jar = new JarFile(jarFile);
@@ -73,7 +92,7 @@ public class Profiler {
 				InputStream entryStream = null;
 				for (Enumeration<JarEntry> entries = jar.entries(); entries.hasMoreElements(); ) {
 					JarEntry entry = entries.nextElement();
-					if ( replaces.containsKey(entry.getName()) ) {
+					if (replaces.containsKey(entry.getName())) {
 						tempJar.putNextEntry(new JarEntry(entry.getName()));
 						tempJar.write(replaces.get(entry.getName()));
 						replaces.remove(entry.getName());
@@ -86,7 +105,7 @@ public class Profiler {
 						entryStream.close();
 					}
 				}
-				for ( Map.Entry<String, byte[]> add : replaces.entrySet() ) {
+				for (Map.Entry<String, byte[]> add : replaces.entrySet()) {
 					tempJar.putNextEntry(new JarEntry(add.getKey()));
 					tempJar.write(add.getValue());
 				}
@@ -101,7 +120,7 @@ public class Profiler {
 			jar.close();
 		}
 
-		if ( jarFile.delete() ) {
+		if (jarFile.delete()) {
 			tempJarFile.renameTo(jarFile);
 			System.out.println(jarPathAndName + " updated.");
 		} else
